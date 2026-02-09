@@ -24,7 +24,7 @@ export function Hero() {
   return (
     <section
       id="home"
-      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-background"
+      className="relative min-h-[100svh] flex items-start justify-center pt-24 sm:pt-0 sm:items-center overflow-hidden bg-background"
     >
       <div
         ref={ref}
@@ -95,7 +95,7 @@ export function Hero() {
       </div>
 
       {/* Scroll indicator */}
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce">
+      <div className="absolute z-20 bottom-6 sm:bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce">
         <span className="text-muted-foreground text-xs tracking-widest uppercase">
           Scroll
         </span>
