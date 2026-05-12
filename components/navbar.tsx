@@ -36,6 +36,13 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll)
   }, [])
 
+  // Close mobile menu on scroll
+  useEffect(() => {
+    const close = () => setIsOpen(false)
+    window.addEventListener("scroll", close, { passive: true })
+    return () => window.removeEventListener("scroll", close)
+  }, [])
+
   const scrollTo = (id: string) => {
     const el = document.getElementById(id)
     if (el) {
@@ -49,7 +56,7 @@ export function Navbar() {
       {/* Scroll Progress Bar */}
       <div className="fixed top-0 left-0 right-0 z-[60] h-1 bg-border">
         <div
-          className="h-full bg-primary transition-all duration-150 ease-out"
+          className="h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-150 ease-out"
           style={{ width: `${scrollProgress}%` }}
         />
       </div>
@@ -57,16 +64,16 @@ export function Navbar() {
       <nav
         className={`fixed top-1 left-0 right-0 z-50 transition-all duration-300 ${
           scrolled
-            ? "bg-background/90 backdrop-blur-xl shadow-sm border-b border-border"
+            ? "bg-background/80 backdrop-blur-xl shadow-sm border-b border-border"
             : "bg-transparent"
         }`}
       >
-        <div className="mx-auto max-w-7xl px-6 py-4 flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
           {/* Logo */}
           <button
             type="button"
             onClick={() => scrollTo("home")}
-            className="font-heading text-xl font-bold text-primary"
+            className="font-heading text-lg sm:text-xl font-bold text-primary"
           >
             SIMON FLAVIAN
           </button>
@@ -78,9 +85,9 @@ export function Navbar() {
                 key={item.href}
                 type="button"
                 onClick={() => scrollTo(item.href)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeSection === item.href
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
@@ -92,7 +99,7 @@ export function Navbar() {
           {/* Mobile Toggle */}
           <button
             type="button"
-            className="lg:hidden text-foreground p-2"
+            className="lg:hidden text-foreground p-2 rounded-lg hover:bg-muted transition-colors"
             onClick={() => setIsOpen(!isOpen)}
             aria-label={isOpen ? "Close menu" : "Open menu"}
           >
@@ -101,16 +108,20 @@ export function Navbar() {
         </div>
 
         {/* Mobile Menu */}
-        {isOpen && (
-          <div className="lg:hidden bg-background border-t border-border px-6 pb-4">
+        <div
+          className={`lg:hidden overflow-hidden transition-all duration-300 ease-out ${
+            isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+          }`}
+        >
+          <div className="bg-background/95 backdrop-blur-xl border-t border-border px-4 sm:px-6 pb-4 space-y-1">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.href}
                 type="button"
                 onClick={() => scrollTo(item.href)}
-                className={`block w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                className={`block w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeSection === item.href
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground shadow-md shadow-primary/25"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
@@ -118,7 +129,7 @@ export function Navbar() {
               </button>
             ))}
           </div>
-        )}
+        </div>
       </nav>
     </>
   )
