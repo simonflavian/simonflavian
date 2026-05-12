@@ -130,7 +130,7 @@ export function Portfolio() {
         category: "Systems",
         image: "/systems/smartedu.png",
         imageFit: "contain",
-        url: "https://smartedutz.netlify.app/",
+        url: "https://smartedu.techiq.co.tz/",
         description: "Automated school management system streamlining student records, academic grading, and parent-school communication."
       },
       {
@@ -225,11 +225,10 @@ export function Portfolio() {
                 setActiveFilter(filter)
                 setVisible({})
               }}
-              className={`rounded-full whitespace-nowrap flex-shrink-0 text-sm sm:text-base ${
-                activeFilter === filter
+              className={`rounded-full whitespace-nowrap flex-shrink-0 text-sm sm:text-base ${activeFilter === filter
                   ? "shadow-lg shadow-primary/25"
                   : ""
-              }`}
+                }`}
             >
               {filter}
             </Button>
