@@ -19,10 +19,10 @@ Full-stack developer building production software — currently shipping **KopaF
 ## ⚡ Stats
 
 <p align="center">
-  <img height="165" src="https://github-readme-stats.vercel.app/api?username=simonflavian&show_icons=true&count_private=true&theme=tokyonight&hide_border=true" />
+  <img height="165" src="https://simonflavian-github-readme-stats.vercel.app/api?username=simonflavian&show_icons=true&count_private=true&theme=tokyonight&hide_border=true" />
   <img height="165" src="https://github-readme-streak-stats.herokuapp.com/?user=simonflavian&theme=tokyonight&hide_border=true" />
 </p>
 
 <p align="center">
-  <img height="165" src="https://github-readme-stats.vercel.app/api/top-langs/?username=simonflavian&layout=compact&theme=tokyonight&hide_border=true" />
+  <img height="165" src="https://simonflavian-github-readme-stats.vercel.app/api/top-langs/?username=simonflavian&layout=compact&theme=tokyonight&hide_border=true" />
 </p>
