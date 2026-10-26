@@ -54,8 +54,15 @@ def fetch():
         data=json.dumps({"query": QUERY, "variables": {"login": USER}}).encode(),
         headers={"Authorization": f"bearer {TOKEN}", "User-Agent": USER},
     )
-    with urllib.request.urlopen(req, timeout=60) as r:
-        body = json.load(r)
+    for attempt in range(5):  # the contributions query 502s now and then
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                body = json.load(r)
+            break
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == 4:
+                raise
+            time.sleep(10 * (attempt + 1))
     if "errors" in body:
         raise SystemExit(body["errors"])
     return body["data"]["user"]
@@ -250,12 +257,15 @@ def contributions_svg(weeks, s):
     out = [prompt(W / 2 - 190, 38, "./contributions.sh")]
 
     # Month labels at the first week that starts in a new month.
-    last = None
+    # Skip a label that would collide with the previous one (a partial first month).
+    last, last_i = None, -9
     for i, wk in enumerate(weeks):
         m = dt.date.fromisoformat(wk["contributionDays"][0]["date"]).month
         if m != last and i < len(weeks) - 2:
+            if i - last_i < 3 and out[-1].startswith("<text"):
+                out.pop()
             out.append(f'<text x="{gx+i*step}" y="{gy-8}" font-size="10" class="muted">{calendar.month_abbr[m]}</text>')
-            last = m
+            last, last_i = m, i
     for r, label in ((1, "Mon"), (3, "Wed"), (5, "Fri")):
         out.append(f'<text x="{gx-8}" y="{gy+r*step+10}" font-size="10" class="muted" text-anchor="end">{label}</text>')
 
