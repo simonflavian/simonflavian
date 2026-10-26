@@ -15,6 +15,9 @@ import datetime as dt
 import io
 import json
 import os
+import time
+import urllib.error
+import urllib.parse
 import urllib.request
 from html import escape
 from pathlib import Path
@@ -56,6 +59,78 @@ def fetch():
     if "errors" in body:
         raise SystemExit(body["errors"])
     return body["data"]["user"]
+
+
+def rest(path):
+    req = urllib.request.Request(
+        "https://api.github.com" + path,
+        headers={"Authorization": f"bearer {TOKEN}", "User-Agent": USER, "Accept": "application/vnd.github+json"},
+    )
+    for _ in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                time.sleep(2.1)  # search API allows 30 requests / minute
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code not in (403, 429):
+                raise
+            reset = int(e.headers.get("X-RateLimit-Reset", time.time() + 60))
+            time.sleep(max(5, reset - time.time() + 1))
+    raise SystemExit(f"rate limited on {path}")
+
+
+def commit_counts(start, end):
+    """Commits authored per day, from every repo the token can read.
+
+    The public calendar hides private-repo work unless GitHub's "private
+    contributions" toggle has propagated; commit search with a token that
+    can read those repos sees it directly.
+    """
+    days, seen = {}, set()
+
+    def window(a, b):
+        q = urllib.parse.quote(f"author:{USER} author-date:{a.isoformat()}..{b.isoformat()}")
+        first = rest(f"/search/commits?q={q}&per_page=100&page=1")
+        if first["total_count"] > 1000 and a < b:  # search caps at 1000 results
+            mid = a + (b - a) / 2
+            window(a, mid)
+            window(mid + dt.timedelta(days=1), b)
+            return
+        page, items = 1, first["items"]
+        while True:
+            for c in items:
+                if c["sha"] in seen:
+                    continue
+                seen.add(c["sha"])
+                day = c["commit"]["author"]["date"][:10]  # author's local date
+                days[day] = days.get(day, 0) + 1
+            if len(items) < 100 or page * 100 >= first["total_count"]:
+                return
+            page += 1
+            items = rest(f"/search/commits?q={q}&per_page=100&page={page}")["items"]
+
+    a = start
+    while a <= end:
+        b = min(end, (a.replace(day=1) + dt.timedelta(days=32)).replace(day=1) - dt.timedelta(days=1))
+        window(a, b)
+        a = b + dt.timedelta(days=1)
+    return days
+
+
+def merge_commits(weeks):
+    """Fold commit counts into the calendar and re-derive the colour levels."""
+    days = [d for wk in weeks for d in wk["contributionDays"]]
+    commits = commit_counts(dt.date.fromisoformat(days[0]["date"]), dt.date.fromisoformat(days[-1]["date"]))
+    for d in days:
+        # max(), not sum: the calendar already includes the public commits.
+        d["contributionCount"] = max(d["contributionCount"], commits.get(d["date"], 0))
+    nonzero = sorted(d["contributionCount"] for d in days if d["contributionCount"])
+    if not nonzero:
+        return
+    q = [nonzero[int(len(nonzero) * f)] for f in (.25, .5, .75)]
+    for d in days:
+        n = d["contributionCount"]
+        d["level"] = 0 if not n else 1 + sum(n > t for t in q)
 
 
 def fmt_day(d):
@@ -188,7 +263,7 @@ def contributions_svg(weeks, s):
     for i, wk in enumerate(weeks):
         cells = []
         for d in wk["contributionDays"]:
-            lvl = levels[d["contributionLevel"]]
+            lvl = d.get("level", levels[d["contributionLevel"]])
             n = d["contributionCount"]
             tip = f'{n} contribution{"s" if n != 1 else ""} on {d["date"]}'
             cells.append(f'<rect x="{gx+i*step}" y="{gy+d["weekday"]*step}" width="{cell}" height="{cell}" rx="2.5" fill="{LEVELS[lvl]}"><title>{tip}</title></rect>')
@@ -304,6 +379,7 @@ def whoami_svg(user, s):
 def main():
     user = fetch()
     weeks = user["contributionsCollection"]["contributionCalendar"]["weeks"]
+    merge_commits(weeks)
     days = [d for wk in weeks for d in wk["contributionDays"]]
     s = stats(days)
     OUT.mkdir(exist_ok=True)

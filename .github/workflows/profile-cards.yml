@@ -20,11 +20,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install pillow==11.0.0
-      - run: python scripts/generate.py
+      - name: Render cards
+        id: render
         env:
           GH_USER: ${{ github.repository_owner }}
-          GH_TOKEN: ${{ secrets.PROFILE_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PROFILE_TOKEN }}
+        run: |
+          # GITHUB_TOKEN can't read private repos, so it would publish public-only
+          # numbers over the real ones. Keep the current cards until the secret exists.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::PROFILE_TOKEN secret is not set; keeping existing cards."
+            exit 0
+          fi
+          python scripts/generate.py
+          echo "rendered=true" >> "$GITHUB_OUTPUT"
       - name: Commit if changed
+        if: steps.render.outputs.rendered == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
