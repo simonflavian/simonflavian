@@ -189,8 +189,16 @@ def stats(days):
         if (day.year, day.month) in per_month:
             per_month[(day.year, day.month)] += c
 
+    week_start = today - dt.timedelta(days=(today.weekday() + 1) % 7)  # Sunday
+    this_week = sum(c for day, c in counts if day >= week_start)
+
     return {
         "total": total,
+        "first_day": counts[0][0],
+        "today": today,
+        "this_week": this_week,
+        "week_start": week_start,
+        "per_day": total / len(counts),
         "current": cur,
         "current_range": cur_range,
         "longest": longest,
@@ -248,14 +256,93 @@ def svg(w, h, body):
 """
 
 
+def shade(hex_color, f):
+    """Lighten (f > 1) or darken (f < 1) a #rrggbb colour."""
+    rgb = [int(hex_color[k:k + 2], 16) for k in (1, 3, 5)]
+    return "#" + "".join(f"{max(0, min(255, round(c * f))):02x}" for c in rgb)
+
+
+def arrow_range(a, b):
+    return f"{fmt_day(a)} → {fmt_day(b)}"
+
+
+def iso_graph(weeks, peak):
+    """Isometric bar city: weeks run down-right, weekdays run down-left."""
+    ox, oy = 78, 150
+    wx, wy = 14.2, 7.4  # one week
+    dx, dy = -7.4, 3.9  # one weekday
+    pad = .1
+    out = []
+
+    def pt(i, j, h=0):
+        return (ox + i * wx + j * dx, oy + i * wy + j * dy - h)
+
+    cubes = []
+    for i, wk in enumerate(weeks):
+        for d in wk["contributionDays"]:
+            cubes.append((i + d["weekday"], i, d))
+    for _, i, d in sorted(cubes, key=lambda c: (c[0], c[1])):
+        j, n, lvl = d["weekday"], d["contributionCount"], d.get("level", 0)
+        h = 2.5 if not n else 5 + 82 * (n / peak) ** .62
+        base = LEVELS[lvl]
+        a, b, c, e = (pt(i + pad, j + pad), pt(i + 1 - pad, j + pad), pt(i + 1 - pad, j + 1 - pad), pt(i + pad, j + 1 - pad))
+        up = lambda q: (q[0], q[1] - h)
+        poly = lambda pts, fill: '<polygon points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + f'" fill="{fill}"/>'
+        top = shade(base, 1.45 if lvl else 1.25)
+        tip = f'{n} contribution{"s" if n != 1 else ""} on {d["date"]}'
+        out.append(
+            f'<g class="grow" style="animation-delay:{0.8+i*0.022:.3f}s"><title>{tip}</title>'
+            + poly([e, c, up(c), up(e)], base)
+            + poly([b, c, up(c), up(b)], shade(base, .62))
+            + poly([up(a), up(b), up(c), up(e)], top)
+            + "</g>"
+        )
+    return "".join(out)
+
+
 def contributions_svg(weeks, s):
+    W = 900
+    peak = max(d["contributionCount"] for wk in weeks for d in wk["contributionDays"]) or 1
+    out = [prompt(W / 2 - 190, 38, "./contributions.sh"), iso_graph(weeks, peak)]
+
+    # Contributions panel (top right)
+    bx, by, bw, bh = 548, 92, 330, 92
+    out.append(f'''<g class="fade" style="animation-delay:.6s">
+    <text x="{bx}" y="{by-12}" font-size="14" font-weight="700">Contributions</text>
+    <rect x="{bx}" y="{by}" width="{bw}" height="{bh}" rx="8" fill="{BG}" fill-opacity=".85" stroke="{BORDER}"/>''')
+    cols = [
+        (f'{s["total"]:,}', "Total", arrow_range(s["first_day"], s["today"])),
+        (f'{s["this_week"]:,}', "This week", arrow_range(s["week_start"], s["today"])),
+        (f'{s["best"]:,}', "Best day", fmt_day(s["best_day"]) if s["best"] else "—"),
+    ]
+    for k, (big, label, sub) in enumerate(cols):
+        x = bx + 16 + k * 112
+        out.append(f'<text x="{x}" y="{by+38}" font-size="24" font-weight="800" style="fill:{ACCENT}">{big}</text>'
+                   f'<text x="{x}" y="{by+58}" font-size="11" font-weight="700">{label}</text>'
+                   f'<text x="{x}" y="{by+76}" font-size="10" class="muted">{sub}</text>')
+    out.append(f'<text x="{bx+bw}" y="{by+bh+20}" font-size="11" text-anchor="end">Average: '
+               f'<tspan style="fill:{ACCENT}">{s["per_day"]:.2f}</tspan><tspan class="muted"> / day</tspan></text></g>')
+
+    # Streaks panel (bottom left)
+    sx, sy, sw, sh = 26, 470, 420, 92
+    cur, lng = s["current_range"], s["longest_range"]
+    out.append(f'''<g class="fade" style="animation-delay:.9s">
+    <text x="{sx}" y="{sy-12}" font-size="14" font-weight="700">Streaks</text>
+    <rect x="{sx}" y="{sy}" width="{sw}" height="{sh}" rx="8" fill="{BG}" fill-opacity=".85" stroke="{BORDER}"/>''')
+    for k, (n, label, r) in enumerate(((s["longest"], "Longest", lng), (s["current"], "Current", cur))):
+        x = sx + 18 + k * 200
+        unit = "day" if n == 1 else "days"
+        out.append(f'<text x="{x}" y="{sy+38}" font-size="24" font-weight="800" style="fill:{ACCENT}">{n}'
+                   f'<tspan font-size="14" font-weight="700" dx="6">{unit}</tspan></text>'
+                   f'<text x="{x}" y="{sy+58}" font-size="11" font-weight="700">{label}</text>'
+                   f'<text x="{x}" y="{sy+76}" font-size="10" class="muted">{arrow_range(*r) if r else "start one today"}</text>')
+    out.append("</g>")
+
+    # Classic 2D grid underneath
     cell, gap = 12, 3
     step = cell + gap
-    W = 900
     gx = (W - len(weeks) * step) / 2 + 14
-    gy = 84
-    out = [prompt(W / 2 - 190, 38, "./contributions.sh")]
-
+    gy = 622
     # Month labels at the first week that starts in a new month.
     # Skip a label that would collide with the previous one (a partial first month).
     last, last_i = None, -9
@@ -277,15 +364,15 @@ def contributions_svg(weeks, s):
             n = d["contributionCount"]
             tip = f'{n} contribution{"s" if n != 1 else ""} on {d["date"]}'
             cells.append(f'<rect x="{gx+i*step}" y="{gy+d["weekday"]*step}" width="{cell}" height="{cell}" rx="2.5" fill="{LEVELS[lvl]}"><title>{tip}</title></rect>')
-        out.append(f'<g class="fade" style="animation-delay:{1.2+i*0.025:.3f}s">{"".join(cells)}</g>')
+        out.append(f'<g class="fade" style="animation-delay:{1.6+i*0.02:.3f}s">{"".join(cells)}</g>')
 
     ly = gy + 7 * step + 22
-    out.append(f'<text x="{gx}" y="{ly}" font-size="12" font-weight="700" class="fade" style="animation-delay:2.4s">{s["total"]:,} contributions in the last year</text>')
+    out.append(f'<text x="{gx}" y="{ly}" font-size="12" font-weight="700" class="fade" style="animation-delay:2.6s">{s["total"]:,} contributions in the last year</text>')
     lx = gx + len(weeks) * step - 5 * 14 - 34
     legend = f'<text x="{lx-8}" y="{ly}" font-size="10" class="muted" text-anchor="end">Less</text>'
     legend += "".join(f'<rect x="{lx+k*14}" y="{ly-10}" width="11" height="11" rx="2.5" fill="{c}"/>' for k, c in enumerate(LEVELS))
     legend += f'<text x="{lx+5*14+4}" y="{ly}" font-size="10" class="muted">More</text>'
-    out.append(f'<g class="fade" style="animation-delay:2.4s">{legend}</g>')
+    out.append(f'<g class="fade" style="animation-delay:2.6s">{legend}</g>')
     return svg(W, ly + 22, "".join(out))
 
 
